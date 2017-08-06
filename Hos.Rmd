@@ -1,0 +1,150 @@
+---
+title: "Hospital Rating Analysis"
+author: "Deepak Kumar"
+date: "July 28, 2017"
+output: 
+  html_document:
+    number_sections: yes
+    toc: yes
+    theme: flatly
+    highlight: tango
+    
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Loading the required libraries ,
+```{r}
+library(plyr)
+library(dplyr)
+library(ggplot2)
+library(plotly)
+library(DT)
+library(tidyr)
+library(gridExtra)
+setwd("C:/Users/Deepak kumar/Downloads/R/Hospital Ratings")
+```
+
+#Loading data & cleaning
+
+```{r}
+hos=read.csv("Hospital General Information.csv",stringsAsFactors = FALSE,header=TRUE)
+glimpse(hos)
+dim(hos)
+head(hos)
+hos$Phone.Number=NULL
+hos$Address=NULL
+names(hos)[names(hos)=="County.Name"]="Country.Name"
+length(unique(hos$Country.Name))
+length(unique(hos$State))
+```
+
+#Hospital Analysis:
+
+##Hospital Types 
+
+
+```{r}
+temp=hos %>% select(Hospital.Name,Hospital.Type) %>% group_by(Hospital.Type)
+temp=ddply(temp,.(Hospital.Type),summarise,count=n())
+plot_ly(temp,x=~temp$Hospital.Type,y=~temp$count,color=temp$Hospital.Type,type="bar") %>% layout(title="Number of Hospitals by Type",xaxis=list(title="Type"),yaxis=list(title="Count"))
+```
+
+##Hospital Ownership:
+
+```{r}
+temp=hos %>% select(Hospital.Name,Hospital.Ownership) %>% group_by(Hospital.Ownership)
+temp=ddply(temp,.(Hospital.Ownership),summarise,count=n())
+plot_ly(temp,x=~temp$Hospital.Ownership,y=~temp$count,color=temp$Hospital.Ownership,type="bar") %>% layout(title="Number of Hospitals by Ownership",xaxis=list(title="Ownership"),yaxis=list(title="Count"),showlegend=FALSE)
+```
+
+
+##Hospital Type by Ownership:
+
+Let us get to know how many hospitals in each type are owned by Gov/agency/NonProfit/Proprietary.
+
+```{r,fig_width=20,fig_height=4}
+temp=as.data.frame(table(hos$Hospital.Type,hos$Hospital.Ownership))
+temp=temp%>% group_by(Var2)
+q=ggplot(temp,aes(Var2,Freq,fill=Var1))+geom_bar(stat="identity")+theme(axis.text.x =element_text(angle=90))+labs(x="Ownership",y="Count",fill="Hospital Type")+ggtitle("Count of Hospital in each Type and Ownership")
+ggplotly(q)
+```
+
+> Remarks:
+
+* Acute care hospitals are present in more numbers(3369) of which 1401 are owned by Private Voluntary Non profit.
+* 2052 hospitals are owned by Voluntary Non profit-Private hospitals across the country.
+* Voluntary Non-Profit tribals own 5 acute care and 4 critical access hospitals.
+* 1078 hospitals are owned by Government across the country of which 538 are Critical access hospitals.
+
+##Hospitals based on ratings:
+
+```{r,fig_width=11,fig_height=12}
+temp=hos %>% filter(Hospital.overall.rating==5) %>% group_by(Hospital.Type,Hospital.Ownership) %>% summarise(total=n())
+ggplot(temp,aes(Hospital.Type,total,fill=Hospital.Type))+geom_bar(stat="identity")+facet_wrap(~Hospital.Ownership)+theme(legend.position="None",axis.text.x = element_text(angle=90))+ggtitle("Hospital Type and Ownership distribution with Rating 5")
+```
+
+> Observations:
+
+* There are no children Hospitals with rating 5.
+* There are 80 acute care hospitals with rating 5 as opposed to 2 Critical Access hospitals.
+* A majoring of Acute care hospitals are owned by Voluntary Non-Profit Private people.
+
+#Digging down further..
+
+##Total number of Hospitals in each State:
+
+```{r}
+temp=ddply(hos,.(State),summarise,total=n()) %>% arrange(desc(total))
+datatable(temp)
+```
+
+* TX(Texas) has got highest hospitals in the whole country -411 nos followed by California (343),Florida(187).
+
+##Country wise hospital numbers in TX:
+
+```{r}
+temp=hos %>% filter(hos$State=="TX")
+length(unique(temp$Country.Name))
+temp=ddply(temp,.(Country.Name),summarise,total=n()) %>% arrange(desc(total))
+datatable(temp)
+```
+
+##Distribution of Hospital Type and Ownership in Texas:
+
+```{r}
+temp=hos %>% filter(hos$State=="TX")
+temp=ddply(temp,.(Hospital.Type,Hospital.Ownership),summarise,total=n()) %>% arrange(desc(total))
+ggplot(temp,aes(Hospital.Type,total,fill=Hospital.Ownership))+geom_bar(stat="identity")+theme(axis.text.x = element_text(angle=90))+labs(x="Hospital Type",y="Total",fill="Ownership")+ggtitle("Distribution of Hospital Type and Ownership in Texas")
+```
+
+> Observations:
+
+* Out of the total of 411 hospitals in TX ,there are 315 acute care hospitals in total of which 125 have proprietary ownership.48 Hospitals are owned by Government(Hospital District or Authority)
+* 85 of the acute care hospitals are owned by Voluntary Non-profit Private.
+* 137 Hospitals in TX are proprietary type.
+* There is only 14  Children hospitals in the whole TX of which none are owned by Government.Out of 14,a majority (11) are owned by Voluntary non-profit private.Lets us see in which all countries in TX are these children hospitals are present.
+
+```{r}
+temp=hos %>% filter(State=="TX" & Hospital.Type=="Childrens")
+datatable(temp)
+temp %>% group_by(Country.Name,Hospital.Ownership,Emergency.Services) %>% summarise(count=n()) %>% ggplot(aes(Country.Name,count,fill=Hospital.Ownership))+geom_bar(stat="identity")+labs(x="Country Name",y="Count",fill="Ownership")+theme(axis.text.x = element_text(angle=90))+ggtitle("Children Hospital in TX")+facet_wrap(~Emergency.Services)
+```
+
+> Observations:
+
+* Collin is the only country in TX that has children Hospital owned by Church.
+* Harris has 3 children hospital out of which 1 provides emergency services.
+* There are 9 hospitals providing emergency services in TX and 5 of them dont have this service.
+* Another interesting observation is that no data is available on the factors like rating,mortality,saftey of care,readmission national comparison,patient experience,effectiveness and timeliness of care and efficient use of medical imaging.Seems like a majority have not participated in IQR and OQR programs.
+
+##Hospital Ratings
+
+```{r}
+temp = hos %>% group_by(Hospital.overall.rating,Emergency.Services) %>% summarise(count=n()) %>% arrange(desc(count))
+bp=ggplot(temp,aes(Hospital.overall.rating,count,fill=temp$Emergency.Services))+geom_bar(stat="identity")+labs(x="Rating",y="Count of Hospitals",fill="Emergency Services")
+ggplotly(bp)
+```
+
