@@ -24,7 +24,6 @@ library(plotly)
 library(DT)
 library(tidyr)
 library(gridExtra)
-setwd("C:/Users/Deepak kumar/Downloads/R/Hospital Ratings")
 ```
 
 #Loading data & cleaning
